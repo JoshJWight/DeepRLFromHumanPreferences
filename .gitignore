@@ -1,0 +1,7 @@
+*.dat
+.ipynb_checkpoints
+*.zip
+*.swp
+tensorboard
+src/__pycache__
+*.pkl
