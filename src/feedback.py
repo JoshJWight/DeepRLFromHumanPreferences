@@ -5,13 +5,13 @@ from comparisonviewer import ComparisonViewer
 import collections
 
 class FeedbackManager:
-    def __init__(self, savefile):
-        self.pickerWindow = picker.PickerWindow()
-
-        #TODO might end up being situations where we're not using this to solicit feedback right now
-        #And don't need to show the picker
-        #self.pickerWindow.show_all()
-        self.pickerWindow.gtkMain() 
+    def __init__(self, savefile, show_picker=True):
+        if show_picker:
+            print("Show picker")
+            self.pickerWindow = picker.PickerWindow()
+            self.pickerWindow.gtkMain() 
+        else:
+            print("No show picker")
 
         #I don't think the footprint of this many clips is that significant, but a human would take a while
         #to work through this many.

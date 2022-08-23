@@ -80,7 +80,8 @@ class RewardModel:
     def evaluate(self, state):
         #TODO the paper recommends regularization since the scale of the reward model is arbitrary.
         stateTensor = torch.FloatTensor(state).to(self.device)
-        return self.net(stateTensor).detach()
+        n = self.net(stateTensor).detach().item()#this will only work if we're evaluating a single state
+        return (n - 0.5) * 2.0
 
     def train(self, samples):
         losses = []
