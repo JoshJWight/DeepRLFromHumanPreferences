@@ -1,6 +1,4 @@
 
-import threading
-from enum import Enum
 import gi
 import numpy as np
 

@@ -57,15 +57,12 @@ class MlpRewardNet(nn.Module):
 
 
 class RewardModel:
-    def __init__(self, input_shape, device, load=False):
+    def __init__(self, net, device, lr=0.01, load=False):
         self.modelFile = "rewardmodel.dat"
 
         self.device = device
-        #TODO make net type selectable
-        #self.net = ConvRewardNet(input_shape).to(device)
-        self.net = MlpRewardNet(input_shape[0], n_hidden=10).to(device)
-        #lr = 0.001
-        lr = 0.01
+        self.net = net
+
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr, eps=1e-3)
     
         print(f"Load: {load}")
@@ -120,4 +117,12 @@ class RewardModel:
 
         print(f"Reward model loss: {totalLoss}")
              
+def MlpRewardModel(input_shape, device, load=False, n_hidden=10):
+    net = MlpRewardNet(input_shape[0], n_hidden=n_hidden).to(device)
+    return RewardModel(net, device, load)
+
+
+def ConvRewardModel(input_shape, device, load=False):
+    net = ConvRewardNet(input_shape).to(device)
+    return RewardModel(net, device, load)
 

@@ -20,7 +20,7 @@ class PickerResult(Enum):
 
 class PickerWindow(Gtk.Window):
     def __init__(self):
-        Gtk.Window.__init__(self, title="Clip Picker")
+        Gtk.Window.__init__(self, title="Which Clip is Better?")
 
         #Constants
         self.timeout = 100
@@ -48,7 +48,7 @@ class PickerWindow(Gtk.Window):
         sameButton.connect("clicked", self.onSameClicked)
         bottomBox.pack_start(sameButton, True, True, 0)
 
-        discardButton = Gtk.Button(label="Discard")
+        discardButton = Gtk.Button(label="Skip")
         discardButton.connect("clicked", self.onDiscardClicked)
         bottomBox.pack_start(discardButton, True, True, 0)
 
