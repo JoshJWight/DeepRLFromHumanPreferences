@@ -22,12 +22,14 @@ class EnvPlayer(Gtk.Window):
 
     def initInGtkThread(self):
         self.actionlabel = Gtk.Label("Action: _")
+        self.rewardlabel = Gtk.Label("Reward: _")
         self.rewardbar = Gtk.ProgressBar()
         self.rewardbar.set_text("Reward: _")
 
 
         box = Gtk.Box(spacing=6)
         box.pack_start(self.actionlabel, True, True, 0)
+        box.pack_start(self.rewardlabel, True, True, 0)
         box.pack_start(self.rewardbar, True, True, 0)
         
         self.pause_button = Gtk.Button(label="Pause")
@@ -58,7 +60,7 @@ class EnvPlayer(Gtk.Window):
         #Update UI
         self.actionlabel.set_text(f"Action: {action}")
         self.rewardbar.set_fraction((reward + 1.0) / 2.0)
-        self.rewardbar.set_text(f"Reward: {reward}")
+        self.rewardlabel.set_text(f"Reward: {reward:.3f}")
         
         #TODO save rewards to make a graph of reward over time?
         if not self.paused:

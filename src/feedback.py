@@ -43,6 +43,11 @@ class FeedbackManager:
         self.clipStorage.append(obj)
         self.mutex.release()
 
+    def addComparison(self, comparison):
+        self.mutex.acquire()
+        self.comparisons.append(comparison)
+        self.mutex.release()
+
     def watchPicker(self):
         while True:
             self.updatePicker()

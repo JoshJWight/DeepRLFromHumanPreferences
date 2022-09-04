@@ -8,47 +8,58 @@ import torch.nn.utils as nn_utils
 import torch.nn.functional as F
 import torch.optim as optim
 
-#Note that this design doesn't care about the action the agent took, only the state it reached.
-#This means it can't really give an opinion on actions that end the episode.
+
+#RLHF paper, appendix A.2
 class ConvRewardNet(nn.Module):
     def __init__(self, input_shape):
         super(ConvRewardNet, self).__init__()
 
-        self.conv = nn.Sequential(
-            nn.Conv2d(input_shape[0], 32, kernel_size=8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU()
-        )
+        self.net = nn.Sequential(
+            #input_shape[0] is (I think) the number of color channels in the input.
+            nn.Conv2d(input_shape[0], 16, kernel_size=7, stride=3),
+            nn.BatchNorm2d(16),
+            nn.Dropout(p=0.5),
+            nn.LeakyReLU(negative_slope=0.01),
 
-        conv_out_size = self._get_conv_out(input_shape)
-        self.value = nn.Sequential(
-            nn.Linear(conv_out_size, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1),
+            nn.Conv2d(16, 16, kernel_size=5, stride=2),
+            nn.BatchNorm2d(16),
+            nn.Dropout(p=0.5),
+            nn.LeakyReLU(negative_slope=0.01),
+
+            nn.Conv2d(16, 16, kernel_size=3, stride=1),
+            nn.BatchNorm2d(16),
+            nn.Dropout(p=0.5),
+            nn.LeakyReLU(negative_slope=0.01),
+
+            nn.Conv2d(16, 16, kernel_size=3, stride=1),
+            nn.BatchNorm2d(16),
+            nn.Dropout(p=0.5),
+            nn.LeakyReLU(negative_slope=0.01),
+
+            nn.LazyLinear(64),
+            #The paper doesn't explicitly say there's a nonlinearity here but I think it makes sense.
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.Linear(64, 1),
+            #TODO this is not what the paper says.
+            #Paper says they "normalize it to have a standard deviation of 0.05"
             nn.Sigmoid()
         )
 
-    def _get_conv_out(self, shape):
-        #TODO i think this flattens even multiple batches together. gotta fix this
-        o = self.conv(torch.zeros(1, *shape))
-        return int(np.prod(o.size()))
-
     def forward(self, x):
         fx = x.float() / 256
-        conv_out = self.conv(fx).view(fx.size()[0], -1)
-        return self.value(conv_out)
+        return self.net(fx)
 
+#RLHF paper, appendix A.1
 class MlpRewardNet(nn.Module):
-    def __init__(self, n_inputs, n_hidden):
+    def __init__(self, n_inputs):
         super(MlpRewardNet, self).__init__()
 
         self.net = nn.Sequential(
-            nn.Linear(n_inputs, n_hidden),
-            nn.ReLU(),
-            nn.Linear(n_hidden, 1),
+            nn.Linear(n_inputs, 64),
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.Linear(64, 64),
+            nn.LeakyReLU(negative_slope=0.01),
+            nn.Linear(64, 1),
             nn.Sigmoid()
         )
 
@@ -65,7 +76,7 @@ class RewardModel:
 
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr, eps=1e-3)
     
-        print(f"Load: {load}")
+        print(f"Should load reward model? {load}")
         if load:
             self.net.load_state_dict(torch.load(self.modelFile))
             self.net.eval()
@@ -79,6 +90,12 @@ class RewardModel:
         stateTensor = torch.FloatTensor(state).to(self.device)
         n = self.net(stateTensor).detach().item()#this will only work if we're evaluating a single state
         return (n - 0.5) * 2.0
+
+    def evaluateMany(self, states):
+        stateTensor = torch.FloatTensor(state).to(self.device)
+        output = self.net(stateTensor).detach().sub(0.5).mul(2.0).numpy()
+        return output
+        
 
     def train(self, samples):
         losses = []
@@ -117,12 +134,12 @@ class RewardModel:
 
         print(f"Reward model loss: {totalLoss}")
              
-def MlpRewardModel(input_shape, device, load=False, n_hidden=10):
-    net = MlpRewardNet(input_shape[0], n_hidden=n_hidden).to(device)
-    return RewardModel(net, device, load)
+def MlpRewardModel(input_shape, device, load=False):
+    net = MlpRewardNet(input_shape[0]).to(device)
+    return RewardModel(net, device, load=load)
 
 
 def ConvRewardModel(input_shape, device, load=False):
     net = ConvRewardNet(input_shape).to(device)
-    return RewardModel(net, device, load)
+    return RewardModel(net, device, load=load)
 

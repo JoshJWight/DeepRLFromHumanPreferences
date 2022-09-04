@@ -22,11 +22,14 @@ class EnvWithRewardModel(gym.Env):
         my_done = (self.current_timestep == self.episode_length)
 
         state, _, done, info = self.env.step(action)
-        reward = 0
         if done:
             state = self.env.reset()
-        else:
-            reward = self.rewardmodel.evaluate(state)
+            
+        reward = self.rewardmodel.evaluate(state)
+
+        #Bad actions have more valence than good actions.
+        if reward < 0:
+            reward *= 10
         
         return state, reward, my_done, info
 
