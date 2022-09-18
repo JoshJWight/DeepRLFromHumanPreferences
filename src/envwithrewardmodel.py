@@ -13,6 +13,8 @@ class EnvWithRewardModel(gym.Env):
         self.episode_length = episode_length
         self.current_timestep = 0
 
+        self.last_reward=0
+
     def reset(self):
         self.current_timestep = 0
         return self.env.reset()
@@ -28,8 +30,19 @@ class EnvWithRewardModel(gym.Env):
         reward = self.rewardmodel.evaluate(state)
 
         #Bad actions have more valence than good actions.
-        if reward < 0:
-            reward *= 10
+        #if reward < 0:
+        #    reward *= 10
+
+        #If env resets, deliver a higher-magnitude signal 
+        #This either strongly rewards a good end to the env's episode or strongly punishes a bad end
+        #(where "good" and "bad" are defined by the human feedback, not by the original environment.)
+        #I think this is *close* to cheating, but still fair.
+        #The RLHF paper did have something about penalties around episode reset
+        if done:
+            factor = 20 #arbitrary
+            reward = self.last_reward * factor
+
+        self.last_reward = reward
         
         return state, reward, my_done, info
 

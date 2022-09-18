@@ -28,6 +28,9 @@ class ComparisonViewer(Gtk.Window):
 
         print(f"{len(comparisons)} comparisons total")
         for comparison in comparisons:
+            #Only show comparisons that still have clips to show
+            if comparison["clips"] == None:
+                continue
             print("comparison step")
             box = Gtk.Box(spacing=6)
             for i in range(2):

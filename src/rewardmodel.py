@@ -14,9 +14,12 @@ class ConvRewardNet(nn.Module):
     def __init__(self, input_shape):
         super(ConvRewardNet, self).__init__()
 
+        #Gym puts the colors as the third dimension
+        n_input_channels = input_shape[2]
+
+        print(f"n_input_channels: {n_input_channels}")
         self.net = nn.Sequential(
-            #input_shape[0] is (I think) the number of color channels in the input.
-            nn.Conv2d(input_shape[0], 16, kernel_size=7, stride=3),
+            nn.Conv2d(n_input_channels, 16, kernel_size=7, stride=3),
             nn.BatchNorm2d(16),
             nn.Dropout(p=0.5),
             nn.LeakyReLU(negative_slope=0.01),
@@ -35,7 +38,12 @@ class ConvRewardNet(nn.Module):
             nn.BatchNorm2d(16),
             nn.Dropout(p=0.5),
             nn.LeakyReLU(negative_slope=0.01),
+           
+            #Flatten the 3-dimensional conv output into 1-dimensional linear input
+            #But leave any batch dimensions intact 
+            nn.Flatten(-3),
 
+            #Adjusts to whatever the input image size happens to be.
             nn.LazyLinear(64),
             #The paper doesn't explicitly say there's a nonlinearity here but I think it makes sense.
             nn.LeakyReLU(negative_slope=0.01),
@@ -46,7 +54,15 @@ class ConvRewardNet(nn.Module):
         )
 
     def forward(self, x):
+        print(x)
         fx = x.float() / 256
+
+        #Gym outputs a tensor with the color channels as the third dimension
+        #But torch expects channels to be the first dimension.
+        #Doing this one flip does mean that the x and y dimensions are swapped, 
+        #but that shouldn't matter for net performance as long as it's consistent
+        fx = x.transpose(-1, -3)
+        print(fx)
         return self.net(fx)
 
 #RLHF paper, appendix A.1
@@ -86,14 +102,16 @@ class RewardModel:
         torch.save(self.net.state_dict(), self.modelFile)
     
     def evaluate(self, state):
+        #BatchNorm in the conv net requires input to always be in batch form.
+        state = [state]
         #TODO the paper recommends regularization since the scale of the reward model is arbitrary.
         stateTensor = torch.FloatTensor(state).to(self.device)
         n = self.net(stateTensor).detach().item()#this will only work if we're evaluating a single state
         return (n - 0.5) * 2.0
 
     def evaluateMany(self, states):
-        stateTensor = torch.FloatTensor(state).to(self.device)
-        output = self.net(stateTensor).detach().sub(0.5).mul(2.0).numpy()
+        stateTensor = torch.FloatTensor(states).to(self.device)
+        output = self.net(stateTensor).detach().sub(0.5).mul(2.0).cpu().numpy()
         return output
         
 
@@ -112,9 +130,12 @@ class RewardModel:
             clip2_v = torch.FloatTensor(np.array(clip2, copy=False)).to(self.device)
 
             self.optimizer.zero_grad()
+            
+            evals1 = self.net(clip1_v)
+            evals2 = self.net(clip2_v)            
 
-            expsum1 = torch.exp(self.net(clip1_v).sum())
-            expsum2 = torch.exp(self.net(clip2_v).sum())
+            expsum1 = torch.exp(evals1.sum())
+            expsum2 = torch.exp(evals2.sum())
 
             phat1 = expsum1 / (expsum1 + expsum2)
             phat2 = expsum2 / (expsum2 + expsum1)
@@ -124,7 +145,10 @@ class RewardModel:
             
             if torch.isnan(loss).any():
                 print("NaN Alert!")
+                #print(f"evals1: {evals1}, evals2: {evals2}")
                 print(f"expsums: {expsum1}, {expsum2} phats: {phat1}, {phat2} loss: {loss}")
+                #for notebook debugging
+                self.naneval = evals1
 
             #TODO track stuff
 

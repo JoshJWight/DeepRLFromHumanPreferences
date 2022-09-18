@@ -46,6 +46,7 @@ def harvestWithEnsemble(env, agent, reward_ensemble, n_timesteps=100, clip_lengt
         obs_sets.append(obs_set)
     
     idx1, idx2 = reward_ensemble.pickComparison(obs_sets)
+    print(f"idx1: {idx1}, idx2: {idx2}")
     return [clips[idx1], clips[idx2]], [obs_sets[idx1], obs_sets[idx2]]
             
     

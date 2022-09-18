@@ -74,6 +74,8 @@ class FeedbackManager:
             self.mutex.release()
 
     def save(self):
+        for comparison in self.comparisons:
+            comparison["clips"] = None
         pickle.dump(self.comparisons, open(self.savefile, "wb"))
 
     def viewComparisons(self):
@@ -84,3 +86,12 @@ class FeedbackManager:
         result = random.sample(self.comparisons, n)
         self.mutex.release()
         return result
+
+    def batchForEnsemble(self, n, ensemble_n):
+        self.mutex.acquire()
+        batches = []
+        for i in range(ensemble_n):
+            population = [self.comparisons[x] for x in range(i, len(self.comparisons), ensemble_n)]
+            batches.append(random.sample(population, n))
+        self.mutex.release()
+        return batches
