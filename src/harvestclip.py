@@ -1,13 +1,15 @@
 import random
+import numpy as np
 
 def harvestClips(env, agent, n_timesteps=100, n_clips=2, clip_length=20):
     frames = []
     observations = []
 
-    obs = env.reset()
+    obs = np.array(env.reset())
     for i in range(n_timesteps):
         action, _ = agent.predict(obs)
         obs, _, done, _ = env.step(action)
+        obs = np.array(obs)
         observations.append(obs)
         if done:
             env.reset()
@@ -27,7 +29,7 @@ def harvestClips(env, agent, n_timesteps=100, n_clips=2, clip_length=20):
     return clips, obs_sets
 
 def harvestWithEnsemble(env, agent, reward_ensemble, n_timesteps=100, clip_length=20):
-    obs = env.reset()
+    obs = np.array(env.reset())
 
     clips = []
     obs_sets = []
@@ -38,6 +40,7 @@ def harvestWithEnsemble(env, agent, reward_ensemble, n_timesteps=100, clip_lengt
         for j in range(clip_length):
             action, _ = agent.predict(obs)
             obs, _, done, _ = env.step(action)
+            obs = np.array(obs)
             obs_set.append(obs)
             if done:
                 env.reset()
@@ -56,10 +59,11 @@ def harvestSynthetic(env, agent, n_timesteps=100, clip_length=20, render=False):
     observations = []
     rewards = []
 
-    obs = env.reset()
+    obs = np.array(env.reset())
     for i in range(n_timesteps):
         action, _ = agent.predict(obs)
         obs, reward, done, _ = env.step(action)
+        obs = np.array(obs)
         observations.append(obs)
         rewards.append(reward)
         if done:

@@ -1,4 +1,5 @@
 import gym
+import numpy as np
 
 class EnvWithRewardModel(gym.Env):
     def __init__(self, env, rewardmodel, episode_length=500):
@@ -26,6 +27,8 @@ class EnvWithRewardModel(gym.Env):
         state, _, done, info = self.env.step(action)
         if done:
             state = self.env.reset()
+
+        state = np.array(state)
             
         reward = self.rewardmodel.evaluate(state)
 

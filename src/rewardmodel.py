@@ -9,16 +9,20 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 
+
 #RLHF paper, appendix A.2
+
+#This expects the input to have the channels as the first dimension
+#Which is true with the frame stack wrapper but not with the base atari environments.
 class ConvRewardNet(nn.Module):
     def __init__(self, input_shape):
         super(ConvRewardNet, self).__init__()
 
-        #Gym puts the colors as the third dimension
-        n_input_channels = input_shape[2]
+        #With the frame stack environment the input channels are the greyscale values for the pixel from the different frames
+        n_input_channels = input_shape[0]
 
-        print(f"n_input_channels: {n_input_channels}")
-        self.net = nn.Sequential(
+        #print(f"n_input_channels: {n_input_channels}")
+        self.conv = nn.Sequential(
             nn.Conv2d(n_input_channels, 16, kernel_size=7, stride=3),
             nn.BatchNorm2d(16),
             nn.Dropout(p=0.5),
@@ -37,14 +41,16 @@ class ConvRewardNet(nn.Module):
             nn.Conv2d(16, 16, kernel_size=3, stride=1),
             nn.BatchNorm2d(16),
             nn.Dropout(p=0.5),
-            nn.LeakyReLU(negative_slope=0.01),
-           
+            nn.LeakyReLU(negative_slope=0.01)
+        )
             #Flatten the 3-dimensional conv output into 1-dimensional linear input
             #But leave any batch dimensions intact 
-            nn.Flatten(-3),
-
+        #self.flatten = nn.Flatten(-3)
+        conv_out_size = self._get_conv_out(input_shape)
+        
+        self.value = nn.Sequential(
             #Adjusts to whatever the input image size happens to be.
-            nn.LazyLinear(64),
+            nn.Linear(conv_out_size, 64),
             #The paper doesn't explicitly say there's a nonlinearity here but I think it makes sense.
             nn.LeakyReLU(negative_slope=0.01),
             nn.Linear(64, 1),
@@ -53,17 +59,32 @@ class ConvRewardNet(nn.Module):
             nn.Sigmoid()
         )
 
+    def _get_conv_out(self, shape):
+        o = self.conv(torch.zeros(1, *shape))
+        return int(np.prod(o.size()))
+
     def forward(self, x):
-        print(x)
+        #print(x)
         fx = x.float() / 256
 
         #Gym outputs a tensor with the color channels as the third dimension
         #But torch expects channels to be the first dimension.
         #Doing this one flip does mean that the x and y dimensions are swapped, 
         #but that shouldn't matter for net performance as long as it's consistent
-        fx = x.transpose(-1, -3)
-        print(fx)
-        return self.net(fx)
+        #fx = x.transpose(-1, -3)
+        #print(fx)
+        #print(f"input shape: {x.shape}")
+
+        fx = self.conv(fx)
+        #print(fx)
+        #fx = self.flatten(fx)
+        #size()[0] is the batch dimension
+        fx = fx.view(fx.size()[0], -1)
+        #print(fx)
+        fx = self.value(fx)
+        #print(fx)
+
+        return fx
 
 #RLHF paper, appendix A.1
 class MlpRewardNet(nn.Module):
@@ -90,7 +111,9 @@ class RewardModel:
         self.device = device
         self.net = net
 
-        self.optimizer = optim.Adam(self.net.parameters(), lr=lr, eps=1e-3)
+        #epsilon = 1e-3
+        epsilon = 1e-5
+        self.optimizer = optim.Adam(self.net.parameters(), lr=lr, eps=epsilon)
     
         print(f"Should load reward model? {load}")
         if load:
@@ -142,7 +165,22 @@ class RewardModel:
 
             loss = -1.0 * ((p1 * torch.log(phat1)) + (p2 * torch.log(phat2)))
             losses.append(loss)
-            
+
+            #Second loss component: penalty for both segments being all really close to zero or one
+            #This was not in the paper; I'm just hacking around a problem I'm having.
+            #Edit: my real problem was that my learn rate was too high and this is probably useless. Still want it in version control though.
+            '''
+            mean1 = torch.mean(evals1)
+            mean2 = torch.mean(evals2)
+            #This is equivalent to taking the mean of the means and multiplying by 2
+            mean = torch.add(mean1, mean2)
+            adjmean = mean.sub(1)
+            loss2 = adjmean.pow(4) 
+            losses.append(loss2)
+            '''
+            #print(f"evals1: {evals1}, evals2: {evals2}")
+            #print(f"expsums: {expsum1}, {expsum2} phats: {phat1}, {phat2}, p: {p1}, {p2} loss: {loss}")
+            #print(f"means: {mean1} + {mean2} = {mean}, adjusted to {adjmean}, final loss2 {loss2}")
             if torch.isnan(loss).any():
                 print("NaN Alert!")
                 #print(f"evals1: {evals1}, evals2: {evals2}")
@@ -158,12 +196,12 @@ class RewardModel:
 
         print(f"Reward model loss: {totalLoss}")
              
-def MlpRewardModel(input_shape, device, load=False):
+def MlpRewardModel(input_shape, device, load=False, lr=0.01):
     net = MlpRewardNet(input_shape[0]).to(device)
-    return RewardModel(net, device, load=load)
+    return RewardModel(net, device, load=load, lr=lr)
 
 
-def ConvRewardModel(input_shape, device, load=False):
+def ConvRewardModel(input_shape, device, load=False, lr=0.001):
     net = ConvRewardNet(input_shape).to(device)
-    return RewardModel(net, device, load=load)
+    return RewardModel(net, device, load=load, lr=lr)
 
