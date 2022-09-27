@@ -67,6 +67,7 @@ class FeedbackManager:
                     elif result is picker.PickerResult.SAME:
                         comparison["values"] = [0.5, 0.5]
                     self.comparisons.append(comparison)
+                    print(f"Now at {len(self.comparisons)} comparisons and {len(self.clipStorage)} clips stored.")
             if len(self.clipStorage) > 0:
                 #Use the most recently provided clip.
                 #Older clips are just kept in case the user picks before another clip is provided.

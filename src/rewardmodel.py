@@ -105,8 +105,8 @@ class MlpRewardNet(nn.Module):
 
 
 class RewardModel:
-    def __init__(self, net, device, lr=0.01, load=False):
-        self.modelFile = "rewardmodel.dat"
+    def __init__(self, net, device, file, lr):
+        self.modelFile = file
 
         self.device = device
         self.net = net
@@ -114,19 +114,22 @@ class RewardModel:
         #epsilon = 1e-3
         epsilon = 1e-5
         self.optimizer = optim.Adam(self.net.parameters(), lr=lr, eps=epsilon)
+
+        self.lossHistory = collections.deque(maxlen=20)
     
-        print(f"Should load reward model? {load}")
-        if load:
+        try:
             self.net.load_state_dict(torch.load(self.modelFile))
             self.net.eval()
             print("Loaded reward model")
+        except:
+            print("Could not load reward model")
 
     def save(self):
         torch.save(self.net.state_dict(), self.modelFile)
     
     def evaluate(self, state):
         #BatchNorm in the conv net requires input to always be in batch form.
-        state = [state]
+        state = np.array([state])
         #TODO the paper recommends regularization since the scale of the reward model is arbitrary.
         stateTensor = torch.FloatTensor(state).to(self.device)
         n = self.net(stateTensor).detach().item()#this will only work if we're evaluating a single state
@@ -194,14 +197,16 @@ class RewardModel:
         totalLoss.backward()
         self.optimizer.step()
 
-        print(f"Reward model loss: {totalLoss}")
+        #print(f"Reward model loss: {totalLoss}")
+        self.lossHistory.append(totalLoss.item())
              
-def MlpRewardModel(input_shape, device, load=False, lr=0.01):
+def MlpRewardModel(input_shape, device, file, lr=0.01):
     net = MlpRewardNet(input_shape[0]).to(device)
-    return RewardModel(net, device, load=load, lr=lr)
+    return RewardModel(net, device, file, lr)
 
 
-def ConvRewardModel(input_shape, device, load=False, lr=0.001):
+#TODO yes we established that this lr is better than 0.01, but is something else better still?
+def ConvRewardModel(input_shape, device, file, lr=0.001):
     net = ConvRewardNet(input_shape).to(device)
-    return RewardModel(net, device, load=load, lr=lr)
+    return RewardModel(net, device, file, lr)
 

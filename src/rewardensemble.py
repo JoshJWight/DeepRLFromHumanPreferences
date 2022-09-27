@@ -4,7 +4,7 @@ import numpy as np
 class RewardEnsemble:
     def __init__(self, n_models, model_fn):
         self.n = n_models
-        self.models = [model_fn() for i in range(n_models)]
+        self.models = [model_fn(i) for i in range(n_models)]
 
     def evaluate(self, state):
         return sum([model.evaluate(state) for model in self.models]) / self.n
@@ -13,8 +13,12 @@ class RewardEnsemble:
         for model, samples in zip(self.models, sample_sets):
             model.train(samples) 
 
+    def save(self):
+        for model in self.models:
+            model.save()
+
     def pickComparison(self, obs_sets):
-        print("Reward ensemble picking comparison")
+        #print("Reward ensemble picking comparison")
 
         #2d array: for each clip, for each model in the ensemble
         evaluations = []
@@ -23,7 +27,7 @@ class RewardEnsemble:
             #From here on, we will be comparing *clips*, not *frames*
             evaluations.append([np.sum(model.evaluateMany(obs_set)) for model in self.models])
 
-        print(f"Evaluations: {evaluations}")
+        #print(f"Evaluations: {evaluations}")
 
         #1d array: the sum of all models' evaluations for each clip
         sums = []
@@ -39,8 +43,8 @@ class RewardEnsemble:
                         max_disagreement = disagreement
             disagreements.append(max_disagreement)
 
-        print(f"Sums: {sums}")
-        print(f"Disagreements: {disagreements}")
+        #print(f"Sums: {sums}")
+        #print(f"Disagreements: {disagreements}")
 
         #Pick the "experimental" clip
         #This is the one with the highest disagreement.
@@ -49,7 +53,7 @@ class RewardEnsemble:
             if disagreements[i] > disagreements[exp_idx]:
                 exp_idx = i
         
-        print(f"Experimental index: {exp_idx}")
+        #print(f"Experimental index: {exp_idx}")
 
         #Pick the "control" clip
         #Random selection from the other clips weighted by
@@ -62,15 +66,16 @@ class RewardEnsemble:
             b = disagreements[exp_idx] - disagreements[i]
             c = a*b
             #Raise them to a power to make the best ones more likely to be picked and the worst ones less
-            compatibilities.append(c ** 2)
+            #c = c**2
+            compatibilities.append(c)
 
-        print(f"Compatibilities: {compatibilities}")
+        #print(f"Compatibilities: {compatibilities}")
 
         ctl_idx = random.choices(range(len(evaluations)), weights=compatibilities, k=1)[0]
 
-        print(f"Control index: {ctl_idx}")
+        #print(f"Control index: {ctl_idx}")
 
-        print(f"Experimental: evaluations {evaluations[exp_idx]}, sum {sums[exp_idx]}, disagreement {disagreements[exp_idx]}")
-        print(f"Control: evaluations {evaluations[ctl_idx]}, sum {sums[ctl_idx]}, disagreement {disagreements[ctl_idx]}")
+        #print(f"Experimental: evaluations {evaluations[exp_idx]}, sum {sums[exp_idx]}, disagreement {disagreements[exp_idx]}")
+        #print(f"Control: evaluations {evaluations[ctl_idx]}, sum {sums[ctl_idx]}, disagreement {disagreements[ctl_idx]}")
 
         return exp_idx, ctl_idx
